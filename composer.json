@@ -6,7 +6,7 @@
     "mimmi20/browscap-helper-source": "^1.0",
     "monolog/monolog": "^1.20",
     "symfony/console": "^3.0",
-    "browscap/browscap": "dev-master"
+    "mimmi20/browser-detector": "dev-master"
   },
   "require-dev": {
     "squizlabs/php_codesniffer": "^2.5",
