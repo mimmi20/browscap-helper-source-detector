@@ -70,7 +70,7 @@ class DetectorSource implements SourceInterface
                 if (!isset($row->ua)) {
                     continue;
                 }
-                if (!array_key_exists($row->ua, $allTests)) {
+                if (array_key_exists($row->ua, $allTests)) {
                     continue;
                 }
 
