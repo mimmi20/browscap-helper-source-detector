@@ -21,37 +21,31 @@ class DetectorSource implements SourceInterface
      */
     public function getUserAgents(Logger $logger, OutputInterface $output, $limit = 0)
     {
+        $counter   = 0;
         $allAgents = [];
 
         foreach ($this->loadFromPath($output) as $dataFile) {
-            if ($limit && count($allAgents) >= $limit) {
-                break;
+            if ($limit && $counter >= $limit) {
+                return;
             }
 
-            $agentsFromFile = [];
-
             foreach ($dataFile as $row) {
+                if ($limit && $counter >= $limit) {
+                    return;
+                }
+
                 if (!isset($row->ua)) {
                     continue;
                 }
 
-                $agentsFromFile[] = $row->ua;
+                if (array_key_exists($row->ua, $allAgents)) {
+                    continue;
+                }
+
+                yield $row->ua;
+                $allAgents[$row->ua] = 1;
+                ++$counter;
             }
-
-            $output->writeln(' [added ' . str_pad(number_format(count($allAgents)), 12, ' ', STR_PAD_LEFT) . ' agent' . (count($allAgents) !== 1 ? 's' : '') . ' so far]');
-
-            $newAgents = array_diff($agentsFromFile, $allAgents);
-            $allAgents = array_merge($allAgents, $newAgents);
-        }
-
-        $i = 0;
-        foreach ($allAgents as $agent) {
-            if ($limit && $i >= $limit) {
-                return null;
-            }
-
-            ++$i;
-            yield $agent;
         }
     }
 
@@ -66,22 +60,18 @@ class DetectorSource implements SourceInterface
         $allTests = [];
 
         foreach ($this->loadFromPath($output) as $dataFile) {
-            foreach ($dataFile as $row) {
-                if (!isset($row->ua)) {
-                    continue;
-                }
-                if (array_key_exists($row->ua, $allTests)) {
+            foreach ($dataFile as $test) {
+                if (!isset($test->ua)) {
                     continue;
                 }
 
-                $allTests[$row->ua] = $row;
+                if (array_key_exists($test->ua, $allTests)) {
+                    continue;
+                }
+
+                yield [$row->ua => $test];
+                $allTests[$row->ua] = 1;
             }
-        }
-
-        $i = 0;
-        foreach ($allTests as $ua => $test) {
-            ++$i;
-            yield [$ua => $test];
         }
     }
 
