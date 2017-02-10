@@ -2,8 +2,10 @@
 
 namespace BrowscapHelper\Source;
 
-use Monolog\Logger;
+use Psr\Cache\CacheItemPoolInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use UaResult\Result\ResultFactory;
 
 /**
  * Class DirectorySource
@@ -13,18 +15,42 @@ use Symfony\Component\Console\Output\OutputInterface;
 class DetectorSource implements SourceInterface
 {
     /**
-     * @param \Monolog\Logger                                   $logger
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
-     * @param int                                               $limit
-     *
-     * @return \Generator
+     * @var \Symfony\Component\Console\Output\OutputInterface
      */
-    public function getUserAgents(Logger $logger, OutputInterface $output, $limit = 0)
+    private $output = null;
+
+    /**
+     * @var null
+     */
+    private $logger = null;
+
+    /**
+     * @var \Psr\Cache\CacheItemPoolInterface|null
+     */
+    private $cache = null;
+
+    /**
+     * @param \Psr\Log\LoggerInterface                          $logger
+     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     */
+    public function __construct(LoggerInterface $logger, OutputInterface $output, CacheItemPoolInterface $cache)
+    {
+        $this->logger = $logger;
+        $this->output = $output;
+        $this->cache  = $cache;
+    }
+
+    /**
+     * @param int $limit
+     *
+     * @return string[]
+     */
+    public function getUserAgents($limit = 0)
     {
         $counter   = 0;
         $allAgents = [];
 
-        foreach ($this->loadFromPath($output) as $dataFile) {
+        foreach ($this->loadFromPath() as $dataFile) {
             if ($limit && $counter >= $limit) {
                 return;
             }
@@ -50,16 +76,14 @@ class DetectorSource implements SourceInterface
     }
 
     /**
-     * @param \Monolog\Logger                                   $logger
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
-     *
-     * @return \Generator
+     * @return \UaResult\Result\Result[]
      */
-    public function getTests(Logger $logger, OutputInterface $output)
+    public function getTests()
     {
-        $allTests = [];
+        $allTests      = [];
+        $resultFactory = new ResultFactory();
 
-        foreach ($this->loadFromPath($output) as $dataFile) {
+        foreach ($this->loadFromPath() as $dataFile) {
             foreach ($dataFile as $test) {
                 if (!isset($test->ua)) {
                     continue;
@@ -69,26 +93,24 @@ class DetectorSource implements SourceInterface
                     continue;
                 }
 
-                yield [$row->ua => $test];
-                $allTests[$row->ua] = 1;
+                yield $test->ua => $resultFactory->fromArray($this->cache, $this->logger, (array) $test->result);
+                $allTests[$test->ua] = 1;
             }
         }
     }
 
     /**
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
-     *
-     * @return \Generator
+     * @return array[]
      */
-    private function loadFromPath(OutputInterface $output = null)
+    private function loadFromPath()
     {
-        $path = 'vendor/mimmi20/browser-detector/tests/issues';
+        $path = 'vendor/mimmi20/browser-detector-tests/tests/issues';
 
         if (!file_exists($path)) {
             return;
         }
 
-        $output->writeln('    reading path ' . $path);
+        $this->output->writeln('    reading path ' . $path);
 
         $iterator = new \RecursiveDirectoryIterator($path);
 
@@ -100,10 +122,10 @@ class DetectorSource implements SourceInterface
 
             $filepath = $file->getPathname();
 
-            $output->write('    reading file ' . str_pad($filepath, 100, ' ', STR_PAD_RIGHT), false);
+            $this->output->writeln('    reading file ' . str_pad($filepath, 100, ' ', STR_PAD_RIGHT));
             switch ($file->getExtension()) {
                 case 'json':
-                    yield (array) json_decode(file_get_contents($filepath));
+                    yield json_decode(file_get_contents($filepath));
                     break;
                 default:
                     // do nothing here
