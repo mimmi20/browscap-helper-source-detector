@@ -13,7 +13,7 @@ namespace BrowscapHelper\Source;
 
 use Psr\Cache\CacheItemPoolInterface;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Finder\Finder;
 use UaResult\Result\ResultFactory;
 
 /**
@@ -23,11 +23,6 @@ use UaResult\Result\ResultFactory;
  */
 class DetectorSource implements SourceInterface
 {
-    /**
-     * @var \Symfony\Component\Console\Output\OutputInterface
-     */
-    private $output = null;
-
     /**
      * @var null
      */
@@ -39,13 +34,12 @@ class DetectorSource implements SourceInterface
     private $cache = null;
 
     /**
-     * @param \Psr\Log\LoggerInterface                          $logger
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     * @param \Psr\Log\LoggerInterface          $logger
+     * @param \Psr\Cache\CacheItemPoolInterface $cache
      */
-    public function __construct(LoggerInterface $logger, OutputInterface $output, CacheItemPoolInterface $cache)
+    public function __construct(LoggerInterface $logger, CacheItemPoolInterface $cache)
     {
         $this->logger = $logger;
-        $this->output = $output;
         $this->cache  = $cache;
     }
 
@@ -56,31 +50,15 @@ class DetectorSource implements SourceInterface
      */
     public function getUserAgents($limit = 0)
     {
-        $counter   = 0;
-        $allAgents = [];
+        $counter = 0;
 
-        foreach ($this->loadFromPath() as $dataFile) {
+        foreach ($this->loadFromPath() as $test) {
             if ($limit && $counter >= $limit) {
                 return;
             }
 
-            foreach ($dataFile as $row) {
-                if ($limit && $counter >= $limit) {
-                    return;
-                }
-
-                if (!isset($row->ua)) {
-                    continue;
-                }
-
-                if (array_key_exists($row->ua, $allAgents)) {
-                    continue;
-                }
-
-                yield $row->ua;
-                $allAgents[$row->ua] = 1;
-                ++$counter;
-            }
+            yield trim($test->ua);
+            ++$counter;
         }
     }
 
@@ -89,27 +67,15 @@ class DetectorSource implements SourceInterface
      */
     public function getTests()
     {
-        $allTests      = [];
         $resultFactory = new ResultFactory();
 
-        foreach ($this->loadFromPath() as $dataFile) {
-            foreach ($dataFile as $test) {
-                if (!isset($test->ua)) {
-                    continue;
-                }
-
-                if (array_key_exists($test->ua, $allTests)) {
-                    continue;
-                }
-
-                yield $test->ua => $resultFactory->fromArray($this->cache, $this->logger, (array) $test->result);
-                $allTests[$test->ua] = 1;
-            }
+        foreach ($this->loadFromPath() as $test) {
+            yield trim($test->ua) => $resultFactory->fromArray($this->cache, $this->logger, (array) $test->result);
         }
     }
 
     /**
-     * @return array[]
+     * @return \StdClass[]
      */
     private function loadFromPath()
     {
@@ -119,26 +85,46 @@ class DetectorSource implements SourceInterface
             return;
         }
 
-        $this->output->writeln('    reading path ' . $path);
+        $this->logger->info('    reading path ' . $path);
 
-        $iterator = new \RecursiveDirectoryIterator($path);
+        $allTests = [];
+        $finder   = new Finder();
+        $finder->files();
+        $finder->name('*.json');
+        $finder->ignoreDotFiles(true);
+        $finder->ignoreVCS(true);
+        $finder->sortByName();
+        $finder->ignoreUnreadableDirs();
+        $finder->in($path);
 
-        foreach (new \RecursiveIteratorIterator($iterator) as $file) {
+        foreach ($finder as $file) {
             /** @var $file \SplFileInfo */
             if (!$file->isFile()) {
                 continue;
             }
 
+            if ('json' !== $file->getExtension()) {
+                continue;
+            }
+
             $filepath = $file->getPathname();
 
-            $this->output->writeln('    reading file ' . str_pad($filepath, 100, ' ', STR_PAD_RIGHT));
-            switch ($file->getExtension()) {
-                case 'json':
-                    yield json_decode(file_get_contents($filepath));
-                    break;
-                default:
-                    // do nothing here
-                    break;
+            $this->logger->info('    reading file ' . str_pad($filepath, 100, ' ', STR_PAD_RIGHT));
+            $dataFile = json_decode(file_get_contents($filepath));
+
+            foreach ($dataFile as $test) {
+                if (!isset($test->ua)) {
+                    continue;
+                }
+
+                $agent = trim($test->ua);
+
+                if (array_key_exists($agent, $allTests)) {
+                    continue;
+                }
+
+                yield $test;
+                $allTests[$agent] = 1;
             }
         }
     }
