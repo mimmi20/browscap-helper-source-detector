@@ -3,17 +3,17 @@
   "description": "the browser detector source for the browscap helper to load useragents and test",
   "require": {
     "php": "^7.0",
-    "mimmi20/browscap-helper-source": "^2.0",
+    "mimmi20/browscap-helper-source": "^2.1",
     "psr/log": "^1.0",
     "psr/cache": "^1.0",
-    "mimmi20/browser-detector": "~1.0.0",
-    "mimmi20/browser-detector-tests": "~1.0.0",
-    "mimmi20/ua-result": "~3.0.5",
+    "mimmi20/browser-detector": "~1.0.1",
+    "mimmi20/browser-detector-tests": "~1.0.1",
+    "mimmi20/ua-result": "~3.1.0",
     "cache/cache": "dev-master",
     "symfony/finder": "^3.2"
   },
   "require-dev": {
-    "squizlabs/php_codesniffer": "^2.8",
+    "squizlabs/php_codesniffer": "^2.9",
     "friendsofphp/php-cs-fixer": "^2.3"
   },
   "license": "MIT",
